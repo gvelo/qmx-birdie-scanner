@@ -2,16 +2,13 @@
 import h5py
 import numpy as np
 import os
+import argparse
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 import traceback
 
-SCAN_FILE_PATH = "scan_results/scan_20250609_225745.h5"
-# Generate the plot for all ffts, not just the ones with birdies. Used for debugging.
-FFT_PLOT = False
 
-
-def save_fft_plot(fft_data, center_freq, fft_bin_freqs, peaks, noise_floor):
+def save_fft_plot(fft_data, center_freq, fft_bin_freqs, peaks, noise_floor, output_dir="."):
     """Generate and save FFT plot when birdies are detected."""
 
     # Create plot
@@ -37,16 +34,17 @@ def save_fft_plot(fft_data, center_freq, fft_bin_freqs, peaks, noise_floor):
     plt.legend()
     plt.tight_layout()
 
-    # Save plot
+    # Save plot to specified output directory
     filename = f"fft_plot_{center_freq/1000000:.6f}MHz.png"
-    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    filepath = os.path.join(output_dir, filename)
+    plt.savefig(filepath, dpi=300, bbox_inches='tight')
     plt.close()
 
-    print(f"    Plot saved: {filename}")
-    return filename
+    print(f"    Plot saved: {filepath}")
+    return filepath
 
 
-def analyze_scan(file_path):
+def analyze_scan(file_path, output_dir=".", fft_plot=False):
     """Analyze a scan file and detect birdies"""
 
     if not os.path.exists(file_path):
@@ -121,21 +119,44 @@ def analyze_scan(file_path):
                         print(f"    {freq_offset:.1f} Hz")
 
                     save_fft_plot(current_fft, center_freq,
-                                  audio_bin_freqs, birdie_peaks, noise_floor)
+                                  audio_bin_freqs, birdie_peaks, noise_floor, output_dir)
                     print()
                 else:
                     # avg_power = np.mean(current_fft)
                     # print(f"Center Freq: {center_freq/1000000:.6f} MHz | Noise Floor: {noise_floor:.1f} dB | No birdies detected | Avg: {avg_power:.1f} dB")
 
-                    if FFT_PLOT:
+                    if fft_plot:
                         save_fft_plot(current_fft, center_freq,
-                                      audio_bin_freqs, [], noise_floor)
+                                      audio_bin_freqs, [], noise_floor, output_dir)
 
     except Exception as e:
         print(f"Error analyzing file: {e}")
         traceback.print_exc()
 
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description='QMX Birdie Detection Analysis')
+    parser.add_argument('h5_file', help='Input H5 file with FFT data to analyze')
+    parser.add_argument('--output-dir', default='.', 
+                       help='Output directory for FFT plots (default: current directory)')
+    parser.add_argument('--fft-plot', action='store_true',
+                       help='Generate plots for ALL FFTs (WARNING: debugging only, creates many files)')
+    
+    args = parser.parse_args()
+    
+    # Create output directory if it doesn't exist
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    
     print(f"Starting FFT data analysis")
-    analyze_scan(SCAN_FILE_PATH)
+    print(f"Input file: {args.h5_file}")
+    print(f"Output directory: {args.output_dir}")
+    if args.fft_plot:
+        print("WARNING: FFT plotting enabled for ALL frequencies - this will generate many files!")
+    print("=" * 50)
+    
+    analyze_scan(args.h5_file, args.output_dir, args.fft_plot)
+
+
+if __name__ == "__main__":
+    main()
