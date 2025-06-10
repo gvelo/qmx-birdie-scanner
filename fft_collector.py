@@ -5,15 +5,13 @@ import sounddevice as sd
 import time
 import h5py
 import os
+import argparse
 from datetime import datetime
 
-# Symbolic variables
-START_FREQUENCY = 28003300  # 28 MHz in Hz
-END_FREQUENCY = 28003400    # 28.001 MHz in Hz (limited range for testing)
+# Configuration constants
 FREQUENCY_STEP = 10         # 10 Hz step
 SETTLE_TIME = 0.150         # 150ms settle time
 AUDIO_DEVICE_NAME = "QMX"
-SERIAL_PORT_NAME = "/dev/ttyACM0"
 SAMPLE_RATE = 48000         # 48 kHz sample rate
 FFT_SIZE = 8192             # 8192 samples per FFT
 
@@ -153,17 +151,29 @@ class Audio:
         return fft_db[self.audio_passband_bins]
 
 
-if __name__ == "__main__":
-    # Create output directory if it doesn't exist
-    output_dir = "scan_results"
-    os.makedirs(output_dir, exist_ok=True)
+def main():
+    parser = argparse.ArgumentParser(description='QMX FFT Frequency Scanner')
+    parser.add_argument('start_freq', type=int, help='Start frequency in Hz')
+    parser.add_argument('end_freq', type=int, help='End frequency in Hz')
+    parser.add_argument('output_file', help='Output H5 filename')
+    parser.add_argument('--serial-port', default='/dev/ttyACM0', 
+                       help='Serial port for CAT control (default: /dev/ttyACM0)')
+    
+    args = parser.parse_args()
+    
+    # Use command line arguments
+    start_frequency = args.start_freq
+    end_frequency = args.end_freq
+    h5_filename = args.output_file
+    serial_port = args.serial_port
 
-    # Generate filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    h5_filename = os.path.join(output_dir, f"scan_{timestamp}.h5")
+    # Create output directory if it doesn't exist
+    output_dir = os.path.dirname(h5_filename)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     # Initialize CAT control
-    cat_control = CATControl(SERIAL_PORT_NAME)
+    cat_control = CATControl(serial_port)
 
     # Initialize audio
     audio = Audio(AUDIO_DEVICE_NAME)
@@ -172,33 +182,34 @@ if __name__ == "__main__":
     fft_length = audio.fft_output_size
 
     print(
-        f"Starting frequency scan from {START_FREQUENCY/1000000:.6f} MHz to {END_FREQUENCY/1000000:.6f} MHz")
+        f"Starting frequency scan from {start_frequency/1000000:.6f} MHz to {end_frequency/1000000:.6f} MHz")
     print(
         f"Step size: {FREQUENCY_STEP} Hz, Settle time: {SETTLE_TIME*1000:.0f} ms")
     print(
-        f"Total steps: {(END_FREQUENCY - START_FREQUENCY) // FREQUENCY_STEP}")
+        f"Total steps: {(end_frequency - start_frequency) // FREQUENCY_STEP}")
     print(f"FFT size: {fft_length} points")
     print(f"Output file: {h5_filename}")
+    print(f"Serial port: {serial_port}")
     print("Press Ctrl+C to stop the scan")
     print("=" * 50)
 
     # Calculate total number of steps
-    total_steps = (END_FREQUENCY - START_FREQUENCY) // FREQUENCY_STEP + 1
+    total_steps = (end_frequency - start_frequency) // FREQUENCY_STEP + 1
 
     # Initialize counters
     step_count = 0
-    current_freq = START_FREQUENCY
+    current_freq = start_frequency
 
     try:
         # Open HDF5 file for writing
         with h5py.File(h5_filename, 'w') as h5file:
             # Store metadata as attributes
-            h5file.attrs['start_frequency'] = START_FREQUENCY
-            h5file.attrs['end_frequency'] = END_FREQUENCY
+            h5file.attrs['start_frequency'] = start_frequency
+            h5file.attrs['end_frequency'] = end_frequency
             h5file.attrs['frequency_step'] = FREQUENCY_STEP
             h5file.attrs['sample_rate'] = audio.sample_rate
             h5file.attrs['fft_size'] = audio.fft_size
-            h5file.attrs['timestamp'] = timestamp
+            h5file.attrs['timestamp'] = datetime.now().strftime("%Y%m%d_%H%M%S")
 
             # Add filtered frequency range attributes
             frequencies_fft = np.fft.rfftfreq(
@@ -218,7 +229,7 @@ if __name__ == "__main__":
             )
 
             # Scan through frequency range
-            for freq in range(START_FREQUENCY, END_FREQUENCY + 1, FREQUENCY_STEP):
+            for freq in range(start_frequency, end_frequency + 1, FREQUENCY_STEP):
                 # Set the radio frequency
                 cat_control.setFreq(freq)
 
@@ -257,5 +268,9 @@ if __name__ == "__main__":
     print("=" * 50)
     print(f"Scan complete. Data saved to {h5_filename}")
     print(
-        f"Scanned from {START_FREQUENCY/1000000:.6f} MHz to {current_freq/1000000:.6f} MHz")
+        f"Scanned from {start_frequency/1000000:.6f} MHz to {current_freq/1000000:.6f} MHz")
     print(f"Total FFT captures: {step_count}")
+
+
+if __name__ == "__main__":
+    main()
