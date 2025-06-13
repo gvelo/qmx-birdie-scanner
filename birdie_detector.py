@@ -46,7 +46,7 @@ def save_fft_plot(fft_data, center_freq, fft_bin_freqs, peaks, noise_floor, outp
     return filepath
 
 
-def analyze_scan(file_path, output_dir=".", fft_plot=False):
+def analyze_scan(file_path, output_dir=".", plot_mode="none"):
     """Analyze a scan file and detect birdies"""
 
     if not os.path.exists(file_path):
@@ -114,16 +114,21 @@ def analyze_scan(file_path, output_dir=".", fft_plot=False):
                 )
 
                 if len(birdie_peaks) > 0:
-                    birdie_freqs = [f"{audio_bin_freqs[peak_idx]:.1f}Hz" for peak_idx in birdie_peaks]
-                    print(f"Center Freq: {center_freq/1000000:.6f} MHz | Birdies: {', '.join(birdie_freqs)}")
+                    birdie_freqs = [
+                        f"{audio_bin_freqs[peak_idx]:.1f}Hz" for peak_idx in birdie_peaks]
+                    print(
+                        f"Center Freq: {center_freq/1000000:.6f} MHz | Birdies: {', '.join(birdie_freqs)}")
 
-                    save_fft_plot(current_fft, center_freq,
-                                  audio_bin_freqs, birdie_peaks, noise_floor, output_dir)
+                    # Generate plot for birdie or all modes
+                    if plot_mode in ["birdie", "all"]:
+                        save_fft_plot(current_fft, center_freq,
+                                      audio_bin_freqs, birdie_peaks, noise_floor, output_dir)
                 else:
                     # avg_power = np.mean(current_fft)
                     # print(f"Center Freq: {center_freq/1000000:.6f} MHz | Noise Floor: {noise_floor:.1f} dB | No birdies detected | Avg: {avg_power:.1f} dB")
 
-                    if fft_plot:
+                    # Generate plot only for all mode when no birdies detected
+                    if plot_mode == "all":
                         save_fft_plot(current_fft, center_freq,
                                       audio_bin_freqs, [], noise_floor, output_dir)
 
@@ -139,8 +144,8 @@ def main():
         'h5_file', help='Input H5 file with FFT data to analyze')
     parser.add_argument('--output-dir', default='.',
                         help='Output directory for FFT plots (default: current directory)')
-    parser.add_argument('--fft-plot', action='store_true',
-                        help='Generate plots for ALL FFTs (WARNING: debugging only, creates many files)')
+    parser.add_argument('--plot-mode', choices=['none', 'birdie', 'all'], default='none',
+                        help='Plot generation mode: none=no plots, birdie=only frequencies with birdies, all=all frequencies (WARNING: creates many files)')
 
     args = parser.parse_args()
 
@@ -151,11 +156,12 @@ def main():
     print(f"Starting FFT data analysis")
     print(f"Input file: {args.h5_file}")
     print(f"Output directory: {args.output_dir}")
-    if args.fft_plot:
-        print("WARNING: FFT plotting enabled for ALL frequencies - this will generate many files!")
+    print(f"Plot mode: {args.plot_mode}")
+    if args.plot_mode == "all":
+        print("WARNING: Plot mode 'all' will generate many files!")
     print("=" * 50)
 
-    analyze_scan(args.h5_file, args.output_dir, args.fft_plot)
+    analyze_scan(args.h5_file, args.output_dir, args.plot_mode)
 
 
 if __name__ == "__main__":
