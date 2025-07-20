@@ -11,6 +11,86 @@ import traceback
 HEIGHT_THRESHOLD_DB = 19  # dB above noise floor for peak detection
 
 
+def find_global_max_magnitude(h5file):
+    """Find the global maximum magnitude across all FFT data without loading everything into memory."""
+    fft_data = h5file['fft_data']
+    fft_count = fft_data.shape[0]
+
+    global_max = 0.0
+    chunk_size = 1000  # Process 1000 FFTs at a time
+
+    for i in range(0, fft_count, chunk_size):
+        end_idx = min(i + chunk_size, fft_count)
+        chunk = fft_data[i:end_idx]
+        chunk_max = np.max(chunk)
+        if chunk_max > global_max:
+            global_max = chunk_max
+
+    return global_max
+
+
+def plot_spectrogram(h5file, output_dir="."):
+    """Generate and save spectrogram plot using globally normalized FFT data."""
+
+    # Get metadata
+    start_freq = h5file.attrs.get('start_frequency', 0)
+    end_freq = h5file.attrs.get('end_frequency', 0)
+    freq_step = h5file.attrs.get('frequency_step', 0)
+    sample_rate = h5file.attrs.get('sample_rate', 0)
+    fft_size = h5file.attrs.get('fft_size', 0)
+    audio_bin_start = h5file.attrs.get('audio_bin_start', 0)
+    audio_bin_end = h5file.attrs.get('audio_bin_end', 0)
+
+    # Get FFT data
+    fft_data = h5file['fft_data']
+    fft_count = fft_data.shape[0]
+
+    # Find global maximum for normalization
+    print("Finding global maximum for normalization...")
+    global_max_magnitude = find_global_max_magnitude(h5file)
+    print(f"Global max magnitude: {global_max_magnitude:.2e}")
+
+    # Create frequency arrays
+    scanned_frequencies = np.arange(
+        start_freq, end_freq + 1, freq_step)[:fft_count]
+    fft_bin_freqs = np.fft.rfftfreq(fft_size, 1/sample_rate)
+    audio_bin_freqs = fft_bin_freqs[audio_bin_start:audio_bin_end+1]
+
+    # Create spectrogram plot
+    plt.figure(figsize=(16, 10))
+
+    # Create meshgrid for pcolormesh
+    # X-axis: audio frequencies (150-3500 Hz)
+    # Y-axis: reception frequencies 
+    # Convert to MHz
+    X, Y = np.meshgrid(audio_bin_freqs, scanned_frequencies / 1e6)
+
+    # Convert to dB with global normalization and plot
+    print("Converting to dB and creating spectrogram...")
+    fft_data_db = 20 * np.log10(fft_data[:] / global_max_magnitude)
+    im = plt.pcolormesh(X, Y, fft_data_db, shading='auto', cmap='plasma')
+
+    # Add colorbar
+    cbar = plt.colorbar(im)
+    cbar.set_label('Power (dB)', rotation=270, labelpad=20)
+
+    # Labels and formatting
+    plt.xlabel('Audio Frequency (Hz)')
+    plt.ylabel('Reception Frequency (MHz)')
+    plt.title(f'Spectrogram: {start_freq/1e6:.6f} - {end_freq/1e6:.6f} MHz')
+    # plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+
+    # Save plot
+    filename = f"spectrogram_{start_freq/1e6:.6f}_{end_freq/1e6:.6f}MHz.png"
+    filepath = os.path.join(output_dir, filename)
+    plt.savefig(filepath, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    print(f"Spectrogram saved to: {filepath}")
+    return filepath
+
+
 def save_fft_plot(fft_data, center_freq, fft_bin_freqs, peaks, noise_floor, output_dir="."):
     """Generate and save FFT plot when birdies are detected."""
 
@@ -95,10 +175,15 @@ def analyze_scan(file_path, output_dir=".", plot_mode="none"):
             print("-" * 50)
 
             for i in range(fft_count):
-                current_fft = fft_data[i]
+                current_fft_raw = fft_data[i]
                 center_freq = scanned_frequencies[i]
 
                 audio_bin_freqs = fft_bin_freqs[audio_bin_start:audio_bin_end+1]
+
+                # Convert raw magnitude to dB for birdie detection (local normalization)
+                max_magnitude = np.max(current_fft_raw) if np.max(
+                    current_fft_raw) > 0 else 1
+                current_fft = 20 * np.log10(current_fft_raw / max_magnitude)
 
                 # Calculate noise floor using median
                 noise_floor = np.median(current_fft)
@@ -144,8 +229,8 @@ def main():
         'h5_file', help='Input H5 file with FFT data to analyze')
     parser.add_argument('--output-dir', default='.',
                         help='Output directory for FFT plots (default: current directory)')
-    parser.add_argument('--plot-mode', choices=['none', 'birdie', 'all'], default='none',
-                        help='Plot generation mode: none=no plots, birdie=only frequencies with birdies, all=all frequencies (WARNING: creates many files)')
+    parser.add_argument('--plot-mode', choices=['none', 'birdie', 'all', 'spectrogram'], default='none',
+                        help='Plot generation mode: none=no plots, birdie=only frequencies with birdies, all=all frequencies (WARNING: creates many files), spectrogram=generate spectrogram')
 
     args = parser.parse_args()
 
@@ -161,7 +246,12 @@ def main():
         print("WARNING: Plot mode 'all' will generate many files!")
     print("=" * 50)
 
-    analyze_scan(args.h5_file, args.output_dir, args.plot_mode)
+    # Handle spectrogram mode independently
+    if args.plot_mode == "spectrogram":
+        with h5py.File(args.h5_file, 'r') as h5file:
+            plot_spectrogram(h5file, args.output_dir)
+    else:
+        analyze_scan(args.h5_file, args.output_dir, args.plot_mode)
 
 
 if __name__ == "__main__":

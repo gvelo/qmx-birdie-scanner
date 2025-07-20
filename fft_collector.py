@@ -141,14 +141,11 @@ class Audio:
         # Compute real FFT
         fft_result = np.fft.rfft(windowed_samples)
 
-        # Convert to dB scale (normalized)
+        # Get magnitude and return raw values (no normalization)
         fft_magnitude = np.abs(fft_result)
-        max_magnitude = np.max(fft_magnitude) if np.max(
-            fft_magnitude) > 0 else 1
-        fft_db = 20 * np.log10(fft_magnitude / max_magnitude)
 
-        # Return only the filtered bins
-        return fft_db[self.audio_passband_bins]
+        # Return only the filtered bins (raw magnitude values)
+        return fft_magnitude[self.audio_passband_bins]
 
 
 def main():
@@ -156,11 +153,11 @@ def main():
     parser.add_argument('start_freq', type=int, help='Start frequency in Hz')
     parser.add_argument('end_freq', type=int, help='End frequency in Hz')
     parser.add_argument('output_file', help='Output H5 filename')
-    parser.add_argument('--serial-port', default='/dev/ttyACM0', 
-                       help='Serial port for CAT control (default: /dev/ttyACM0)')
-    
+    parser.add_argument('--serial-port', default='/dev/ttyACM0',
+                        help='Serial port for CAT control (default: /dev/ttyACM0)')
+
     args = parser.parse_args()
-    
+
     # Use command line arguments
     start_frequency = args.start_freq
     end_frequency = args.end_freq
@@ -209,7 +206,8 @@ def main():
             h5file.attrs['frequency_step'] = FREQUENCY_STEP
             h5file.attrs['sample_rate'] = audio.sample_rate
             h5file.attrs['fft_size'] = audio.fft_size
-            h5file.attrs['timestamp'] = datetime.now().strftime("%Y%m%d_%H%M%S")
+            h5file.attrs['timestamp'] = datetime.now().strftime(
+                "%Y%m%d_%H%M%S")
 
             # Add filtered frequency range attributes
             frequencies_fft = np.fft.rfftfreq(
@@ -237,22 +235,22 @@ def main():
                 time.sleep(SETTLE_TIME)
 
                 # Capture FFT at this frequency
-                fft_db = audio.capture_and_fft()
+                fft_magnitude = audio.capture_and_fft()
 
-                # Calculate average power in the FFT
-                avg_power = np.mean(fft_db)
-                max_power = np.max(fft_db)
+                # Calculate average and max magnitude
+                avg_magnitude = np.mean(fft_magnitude)
+                max_magnitude = np.max(fft_magnitude)
 
                 # Resize dataset and add new data (streaming style)
                 if step_count > 0:  # After first iteration, need to resize
                     fft_dataset.resize(step_count + 1, axis=0)
 
                 # Store FFT data
-                fft_dataset[step_count] = fft_db
+                fft_dataset[step_count] = fft_magnitude
 
                 # Print progress
                 print(
-                    f"Freq: {freq/1000000:.6f} MHz | Avg power: {avg_power:.2f} dB | Max power: {max_power:.2f} dB | Progress: {step_count+1}/{total_steps}")
+                    f"Freq: {freq/1000000:.6f} MHz | Avg magnitude: {avg_magnitude:.2e} | Max magnitude: {max_magnitude:.2e} | Progress: {step_count+1}/{total_steps}")
 
                 # Increment counter
                 step_count += 1
