@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import h5py
+from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
 import os
 import argparse
@@ -27,6 +28,37 @@ def find_global_max_magnitude(h5file):
             global_max = chunk_max
 
     return global_max
+
+
+def create_nonlinear_birdie_colormap():
+
+    colors = [
+        '#000022',
+        '#000044',
+        '#000066',
+        '#002288',
+        '#0044AA',
+        '#0066CC',
+        '#00AAEE',
+        '#66DDFF',
+        '#AAFFDD',
+        '#DDFFAA',
+        '#FFDD66',
+        '#FFAA00',
+        '#FF6600',
+        '#FFFF00'
+    ]
+
+    breakpoints = [0.0, 0.60, 0.70, 0.75, 0.80, 0.83, 0.86, 0.89,
+                   0.92, 0.94, 0.96, 0.98, 0.99, 1.0]
+
+    birdie_cmap = LinearSegmentedColormap.from_list(
+        'birdie_nonlinear',
+        list(zip(breakpoints, colors)),
+        N=256
+    )
+
+    return birdie_cmap
 
 
 def plot_spectrogram(h5file, output_dir="."):
@@ -61,15 +93,15 @@ def plot_spectrogram(h5file, output_dir="."):
 
     # Create meshgrid for pcolormesh
     # X-axis: audio frequencies (150-3500 Hz)
-    # Y-axis: reception frequencies 
+    # Y-axis: reception frequencies
     # Convert to MHz
     X, Y = np.meshgrid(audio_bin_freqs, scanned_frequencies / 1e6)
 
     # Convert to dB with global normalization and plot
     print("Converting to dB and creating spectrogram...")
     fft_data_db = 20 * np.log10(fft_data[:] / global_max_magnitude)
-    im = plt.pcolormesh(X, Y, fft_data_db, shading='auto', cmap='plasma')
-
+    im = plt.pcolormesh(X, Y, fft_data_db, shading='auto',
+                        cmap=create_nonlinear_birdie_colormap())
     # Add colorbar
     cbar = plt.colorbar(im)
     cbar.set_label('Power (dB)', rotation=270, labelpad=20)
