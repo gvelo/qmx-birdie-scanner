@@ -206,11 +206,15 @@ def analyze_scan(file_path, output_dir=".", plot_mode="none"):
             print("Birdie Analysis:")
             print("-" * 50)
 
+            # State machine for birdie range detection
+            in_birdie_range = False
+            birdie_start_freq = 0
+            birdie_count = 0
+            audio_bin_freqs = fft_bin_freqs[audio_bin_start:audio_bin_end+1]
+
             for i in range(fft_count):
                 current_fft_raw = fft_data[i]
                 center_freq = scanned_frequencies[i]
-
-                audio_bin_freqs = fft_bin_freqs[audio_bin_start:audio_bin_end+1]
 
                 # Convert raw magnitude to dB for birdie detection (local normalization)
                 max_magnitude = np.max(current_fft_raw) if np.max(
@@ -230,24 +234,48 @@ def analyze_scan(file_path, output_dir=".", plot_mode="none"):
                     height=noise_floor + HEIGHT_THRESHOLD_DB
                 )
 
-                if len(birdie_peaks) > 0:
-                    birdie_freqs = [
-                        f"{audio_bin_freqs[peak_idx]:.1f}Hz" for peak_idx in birdie_peaks]
+                # State machine logic for birdie range detection
+                has_birdies = len(birdie_peaks) > 0
+
+                if has_birdies and not in_birdie_range:
+                    # Transition: CLEAN -> IN_BIRDIE
+                    in_birdie_range = True
+                    birdie_start_freq = center_freq
+                elif not has_birdies and in_birdie_range:
+                    # Transition: IN_BIRDIE -> CLEAN (emit range)
+                    in_birdie_range = False
+                    birdie_count += 1
+                    # Last frequency with birdies
+                    prev_freq = scanned_frequencies[i-1]
+
+                    if birdie_start_freq == prev_freq:
+                        print(
+                            f"Birdie #{birdie_count}: {birdie_start_freq/1000000:.6f} MHz")
+                    else:
+                        print(
+                            f"Birdie #{birdie_count}: {birdie_start_freq/1000000:.6f} - {prev_freq/1000000:.6f} MHz")
+
+                # Generate plots if requested
+                if has_birdies and plot_mode in ["birdie", "all"]:
+                    save_fft_plot(current_fft, center_freq,
+                                  audio_bin_freqs, birdie_peaks, noise_floor, output_dir)
+                elif not has_birdies and plot_mode == "all":
+                    save_fft_plot(current_fft, center_freq,
+                                  audio_bin_freqs, [], noise_floor, output_dir)
+
+            # Handle case where scan ends while still in birdie range
+            if in_birdie_range:
+                birdie_count += 1
+                last_freq = scanned_frequencies[-1]
+                if birdie_start_freq == last_freq:
                     print(
-                        f"Center Freq: {center_freq/1000000:.6f} MHz | Birdies: {', '.join(birdie_freqs)}")
-
-                    # Generate plot for birdie or all modes
-                    if plot_mode in ["birdie", "all"]:
-                        save_fft_plot(current_fft, center_freq,
-                                      audio_bin_freqs, birdie_peaks, noise_floor, output_dir)
+                        f"Birdie #{birdie_count}: {birdie_start_freq/1000000:.6f} MHz")
                 else:
-                    # avg_power = np.mean(current_fft)
-                    # print(f"Center Freq: {center_freq/1000000:.6f} MHz | Noise Floor: {noise_floor:.1f} dB | No birdies detected | Avg: {avg_power:.1f} dB")
+                    print(
+                        f"Birdie #{birdie_count}: {birdie_start_freq/1000000:.6f} - {last_freq/1000000:.6f} MHz")
 
-                    # Generate plot only for all mode when no birdies detected
-                    if plot_mode == "all":
-                        save_fft_plot(current_fft, center_freq,
-                                      audio_bin_freqs, [], noise_floor, output_dir)
+            if birdie_count == 0:
+                print("No birdies detected in the scanned frequency range.")
 
     except Exception as e:
         print(f"Error analyzing file: {e}")
