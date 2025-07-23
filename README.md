@@ -2,6 +2,114 @@
 
 **qmx-birdie-scanner** is an experimental Python project designed to detect *birdies* in **QMX** and **QMX+** transmitters manufactured by [QRP Labs](https://qrp-labs.com/). The project consists of two scripts: one for capturing audio FFT data and another for analyzing it to identify narrowband energy peaks.
 
+## Installation
+
+### Windows
+
+1. **Install Python 3:**
+   - Download Python 3 from [python.org](https://www.python.org/downloads/windows/)
+   - During installation, make sure to check "Add Python to PATH"
+   - Verify installation by opening Command Prompt and running: `python --version`
+
+2. **Download the application code:**
+   - **Option A (Git):** Clone the repository:
+     ```cmd
+     git clone https://github.com/gvelo/qmx-birdie-scanner.git
+     cd qmx-birdie-scanner
+     ```
+   - **Option B (ZIP):** Download and extract the ZIP file from: https://github.com/gvelo/qmx-birdie-scanner/archive/refs/heads/main.zip
+
+3. **Create a virtual environment:**
+   ```cmd
+   python -m venv venv
+   ```
+
+4. **Activate the virtual environment:**
+   ```cmd
+   venv\Scripts\activate
+   ```
+
+5. **Install dependencies:**
+   ```cmd
+   pip install -r requirements.txt
+   ```
+
+### Linux (Ubuntu)
+
+1. **Install Python 3:**
+   ```bash
+   sudo apt update
+   sudo apt install python3 python3-pip python3-venv git
+   ```
+
+2. **Download the application code:**
+   - **Option A (Git):** Clone the repository:
+     ```bash
+     git clone https://github.com/gvelo/qmx-birdie-scanner.git
+     cd qmx-birdie-scanner
+     ```
+   - **Option B (ZIP):** Download and extract the ZIP file:
+     ```bash
+     wget https://github.com/gvelo/qmx-birdie-scanner/archive/refs/heads/main.zip
+     unzip main.zip
+     cd qmx-birdie-scanner-main
+     ```
+
+3. **Create a virtual environment:**
+   ```bash
+   python3 -m venv venv
+   ```
+
+4. **Activate the virtual environment:**
+   ```bash
+   source venv/bin/activate
+   ```
+
+5. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### macOS
+
+1. **Install Python 3:**
+   - **Option A (Homebrew - recommended):**
+     ```bash
+     # Install Homebrew if not already installed
+     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+     # Install Python 3
+     brew install python3 git
+     ```
+   - **Option B (Direct download):** Download Python 3 from [python.org](https://www.python.org/downloads/macos/)
+
+2. **Download the application code:**
+   - **Option A (Git):** Clone the repository:
+     ```bash
+     git clone https://github.com/gvelo/qmx-birdie-scanner.git
+     cd qmx-birdie-scanner
+     ```
+   - **Option B (ZIP):** Download and extract the ZIP file:
+     ```bash
+     curl -L https://github.com/gvelo/qmx-birdie-scanner/archive/refs/heads/main.zip -o main.zip
+     unzip main.zip
+     cd qmx-birdie-scanner-main
+     ```
+
+3. **Create a virtual environment:**
+   ```bash
+   python3 -m venv venv
+   ```
+
+4. **Activate the virtual environment:**
+   ```bash
+   source venv/bin/activate
+   ```
+
+5. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
 ## Scripts
 
 ### `fft_collector.py`
@@ -26,7 +134,7 @@ options:
                           Serial port for CAT control (default: /dev/ttyACM0)
 ```
 
-#### Example – Scan the 20-meter amateur band:
+#### Example – Scan the 20-meter band:
 
 ```bash
 python3 fft_collector.py --serial-port /dev/ttyACM0 14000000 14350000 scan_20m.h5
@@ -90,5 +198,4 @@ This is an experimental project
 ## License
 
 MIT
-
 
